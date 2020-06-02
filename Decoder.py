@@ -1,7 +1,3 @@
-import sys
-sys.setrecursionlimit(20000)
-
-
 import EncoderPlusChannel as epc
 import HG1 as hg1
 import matplotlib.pyplot as plt
