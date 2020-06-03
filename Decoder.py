@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import Global
+from dask.distributed import Client
+import dask
 MODEL=5
 alpha=0.5;beta=0.5
 ITER=10
@@ -133,7 +135,7 @@ def decode(H,c_Rx):
                 L=np.sign(L/S)*l
                 lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
                 L=lin-L
-            d_bits[model]=demod(lin)            
+            d_bits[model]=demod(lin)
         if model==3: # 3 -> approximation model.
             for i in range(mx_iter):
                 L = tanh_mine(L/2)
@@ -147,6 +149,7 @@ def decode(H,c_Rx):
             d_bits[model] = demod(l_intrinsic)
     return np.array(d_bits)
 ######################## MAIN ################################
+client = Client(processes=False, n_workers=4) #setting up dask cluster
 tmp=[]
 genAll(tmp,64)
 H,c_encoded=hg1.encode(Global.msg)
@@ -154,20 +157,24 @@ H,c_encoded=hg1.encode(Global.msg)
 Global.code_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
 Global.bit_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
 mem=[(1.5014,-0.0022),(1.174,-0.055),(0.8513,0.0464),(0.6218,-0.0205),(0.4713,-0.008),(0.3703,-0.0255),(0.2715,0),(0.3035,-0.0126),(0.2597,0.0063)]
-indx=0
+indx=0  
 for i_upper in range(1,ITER): # FOR DIFF std
     Global.std=i_upper/10
     alpha, beta = mem[indx][0],mem[indx][1]#ml.train()
     indx=indx+1
     c_Rx = epc.rx_message(c_encoded)
+    res = []
     for i in range(c_Rx.shape[0]): # FOR DIFF codes
-        dec_bits=decode(H,c_Rx[i]) ## get results for all the models.
+        dec_bits=dask.delayed(decode)(H,c_Rx[i]) ## get results for all the models.
+        res.append(dec_bits)
+    res = dask.compute(*res)
+    for i in range (c_Rx.shape[0]):
         for model in selModel: # FOR DIFF models check the accuracy.
             #Global.code_err[model][i_upper - 1] += ( 1-np.count_nonzero(dec_bits[model] == c_encoded[i]) / Global.n )
-            if (dec_bits[model]==c_encoded[i]).all()==True:
+            if (res[i][model]==c_encoded[i]).all()==True:
                 Global.code_err[model][i_upper - 1] +=1
     print('---',i_upper,'---')
-# Calculating the BLER
+#Calculating the BLER
     for model in range(MODEL):
         #Global.code_err[model][i_upper-1]=Global.code_err[model][i_upper-1]/c_Rx.shape[0]
         Global.code_err[model][i_upper-1]=1-Global.code_err[model][i_upper-1]/c_Rx.shape[0]
