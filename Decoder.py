@@ -115,8 +115,8 @@ def decode(H,c_Rx):
     d_bits[3] = dask.delayed(decode_model_3)(mx_iter,L,lin)
     d_bits = dask.compute(*d_bits,client)
     return np.array(d_bits)
-    
-    
+
+
 def decode_model_0(mx_iter,L,lin):
     for i in range(mx_iter):
         L=np.tanh(L/2)
@@ -157,7 +157,7 @@ def decode_model_3(mx_iter,L,lin):
         lin = (lin + np.nansum(L, axis=0)).reshape(1, Global.n)
         L = lin - L
     return demod(lin)
-    
+
 # def decode(H,c_Rx):
 #     mx_iter=15
 #     l_intrinsic = np.multiply(2 / Global.std**2, c_Rx)
@@ -208,41 +208,43 @@ def decode_model_3(mx_iter,L,lin):
 #             d_bits[model] = demod(l_intrinsic)
 #     return np.array(d_bits)
 ######################## MAIN ################################
-##Setting up the dask scheduler
-client = Client(processes=True, n_workers=4)
-tmp=[]
-genAll(tmp,64)
-H,c_encoded=hg1.encode(Global.msg)
-#Decoding
-Global.code_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
-Global.bit_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
-mem=[(1.5014,-0.0022),(1.174,-0.055),(0.8513,0.0464),(0.6218,-0.0205),(0.4713,-0.008),(0.3703,-0.0255),(0.2715,0),(0.3035,-0.0126),(0.2597,0.0063)]
-indx=0
- 
-for i_upper in range(1,ITER): # FOR DIFF std
-    Global.std=i_upper/10
-    alpha, beta = mem[indx][0],mem[indx][1]#ml.train()
-    indx=indx+1
-    c_Rx = epc.rx_message(c_encoded)
-    for i in range(c_Rx.shape[0]): # FOR DIFF codes
-        dec_bits=decode(H,c_Rx[i]) ## get results for all the models.
-        for model in selModel: # FOR DIFF models check the accuracy.
-            #Global.code_err[model][i_upper - 1] += ( 1-np.count_nonzero(dec_bits[model] == c_encoded[i]) / Global.n )
-            if (dec_bits[model]==c_encoded[i]).all()==True:
-                Global.code_err[model][i_upper - 1] +=1
-    print('---',i_upper,'---')
-# Calculating the BLER
-    for model in range(MODEL):
-        #Global.code_err[model][i_upper-1]=Global.code_err[model][i_upper-1]/c_Rx.shape[0]
-        Global.code_err[model][i_upper-1]=1-Global.code_err[model][i_upper-1]/c_Rx.shape[0]
-####################### Plotting the results #################################
-x_axis=np.array([10*math.log10((100/(i**2))) for i in range(1,ITER) ])
-color=["rx-","bo-","g^-","kx-","yo-"]
-for model in selModel:
-    plt.plot(x_axis,np.array(Global.code_err[model]),color[model])
-#plt.legend(('Original','ML-method','Min_max','tnh_atnh approx'))
-plt.legend(('Original','ML-method','Min_max','tnh_atnh approx','No_Decoder'))
-plt.xlabel('SNR(db)')
-plt.ylabel('BLER (n=%d/k=%d)'%(Global.n,Global.k))
-plt.show()
-######################################################################
+#Setting up the scheduler
+if __name__ == '__main__':
+    client = Client(processes=True, n_workers=4)
+
+    tmp=[]
+    genAll(tmp,64)
+    H,c_encoded=hg1.encode(Global.msg)
+    #Decoding
+    Global.code_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
+    Global.bit_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
+    mem=[(1.5014,-0.0022),(1.174,-0.055),(0.8513,0.0464),(0.6218,-0.0205),(0.4713,-0.008),(0.3703,-0.0255),(0.2715,0),(0.3035,-0.0126),(0.2597,0.0063)]
+    indx=0
+
+    for i_upper in range(1,ITER): # FOR DIFF std
+        Global.std=i_upper/10
+        alpha, beta = mem[indx][0],mem[indx][1]#ml.train()
+        indx=indx+1
+        c_Rx = epc.rx_message(c_encoded)
+        for i in range(2): # FOR DIFF codes
+            dec_bits=decode(H,c_Rx[i]) ## get results for all the models.
+            for model in selModel: # FOR DIFF models check the accuracy.
+                #Global.code_err[model][i_upper - 1] += ( 1-np.count_nonzero(dec_bits[model] == c_encoded[i]) / Global.n )
+                if (dec_bits[model]==c_encoded[i]).all()==True:
+                    Global.code_err[model][i_upper - 1] +=1
+        print('---',i_upper,'---')
+    # Calculating the BLER
+        for model in range(MODEL):
+            #Global.code_err[model][i_upper-1]=Global.code_err[model][i_upper-1]/c_Rx.shape[0]
+            Global.code_err[model][i_upper-1]=1-Global.code_err[model][i_upper-1]/c_Rx.shape[0]
+    ####################### Plotting the results #################################
+    x_axis=np.array([10*math.log10((100/(i**2))) for i in range(1,ITER) ])
+    color=["rx-","bo-","g^-","kx-","yo-"]
+    for model in selModel:
+        plt.plot(x_axis,np.array(Global.code_err[model]),color[model])
+    #plt.legend(('Original','ML-method','Min_max','tnh_atnh approx'))
+    plt.legend(('Original','ML-method','Min_max','tnh_atnh approx','No_Decoder'))
+    plt.xlabel('SNR(db)')
+    plt.ylabel('BLER (n=%d/k=%d)'%(Global.n,Global.k))
+    plt.show()
+    ######################################################################
