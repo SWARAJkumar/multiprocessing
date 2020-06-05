@@ -226,7 +226,7 @@ if __name__ == '__main__':
         alpha, beta = mem[indx][0],mem[indx][1]#ml.train()
         indx=indx+1
         c_Rx = epc.rx_message(c_encoded)
-        for i in range(2): # FOR DIFF codes
+        for i in range(c_Rx.shape[0]): # FOR DIFF codes
             dec_bits=decode(H,c_Rx[i]) ## get results for all the models.
             for model in selModel: # FOR DIFF models check the accuracy.
                 #Global.code_err[model][i_upper - 1] += ( 1-np.count_nonzero(dec_bits[model] == c_encoded[i]) / Global.n )
