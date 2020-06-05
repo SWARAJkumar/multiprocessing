@@ -100,118 +100,58 @@ def MIN(L):
     L[L==999]=np.nan
     return L
 ##############################################################
-def decode(H,c_Rx):
+def decode(H,c_Rx,globalstd):
     mx_iter=15
-    l_intrinsic = np.multiply(2 / Global.std**2, c_Rx)
+    l_intrinsic = np.multiply(2 / globalstd**2, c_Rx)
     d_bits=[[] for i in range(MODEL)]
-    lin = l_intrinsic
-    L = np.multiply(H, lin)
-    indx = np.where(L == 0)
-    L[indx] = np.nan
-    L = dask.delayed(L)
-    d_bits[0] = dask.delayed(decode_model_0)(mx_iter,L,lin)
-    d_bits[1] = dask.delayed(decode_model_1)(mx_iter,L,lin)
-    d_bits[2] = dask.delayed(decode_model_2)(mx_iter,L,lin)
-    d_bits[3] = dask.delayed(decode_model_3)(mx_iter,L,lin)
-    d_bits = dask.compute(*d_bits,client)
+    for model in selModel:
+        lin = l_intrinsic
+        L = np.multiply(H, lin)
+        indx = np.where(L == 0)
+        L[indx] = np.nan
+        if model==0: # 0 -> original model.
+            for i in range(mx_iter):
+                L=np.tanh(L/2)
+                L_=np.nanprod(L,axis=1).reshape(Global.n-Global.k,1)
+                L=np.divide(L_, L)
+                L=2*ATANH(L)
+                lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
+                L=lin-L
+            d_bits[model]=demod(lin)
+        if model==1: # 1 -> alpha beta model.
+            for i in range(mx_iter):
+                S=np.sign(L)
+                S=np.nanprod(S,axis=1).reshape(Global.n-Global.k,1)
+                l=MIN(np.abs(L))
+                L=np.sign(L/S)*l
+                L=alpha*L+beta
+                lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
+                L=lin-L
+            d_bits[model]=demod(lin)
+        if model==2: # 2 -> min sum model
+            for i in range(mx_iter):
+                S=np.sign(L)
+                S=np.nanprod(S,axis=1).reshape(Global.n-Global.k,1)
+                l=MIN(np.abs(L))
+                L=np.sign(L/S)*l
+                lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
+                L=lin-L
+            d_bits[model]=demod(lin)
+        if model==3: # 3 -> approximation model.
+            for i in range(mx_iter):
+                L = tanh_mine(L/2)
+                L_ = np.nanprod(L, axis=1).reshape(Global.n - Global.k, 1)
+                L = np.divide(L_, L)
+                L = 2*atanh_mine(L)
+                lin = (lin + np.nansum(L, axis=0)).reshape(1, Global.n)
+                L = lin - L
+            d_bits[model] = demod(lin)
+        if model==4: # 4 -> default model
+            d_bits[model] = demod(l_intrinsic)
     return np.array(d_bits)
-
-
-def decode_model_0(mx_iter,L,lin):
-    for i in range(mx_iter):
-        L=np.tanh(L/2)
-        L_=np.nanprod(L,axis=1).reshape(Global.n-Global.k,1)
-        L=np.divide(L_, L)
-        L=2*ATANH(L)
-        lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
-        L=lin-L
-    return demod(lin)
-
-def decode_model_1(mx_iter,L,lin):
-    for i in range(mx_iter):
-        S=np.sign(L)
-        S=np.nanprod(S,axis=1).reshape(Global.n-Global.k,1)
-        l=MIN(np.abs(L))
-        L=np.sign(L/S)*l
-        L=alpha*L+beta
-        lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
-        L=lin-L
-    return demod(lin)
-
-def decode_model_2(mx_iter,L,lin):
-    for i in range(mx_iter):
-        S=np.sign(L)
-        S=np.nanprod(S,axis=1).reshape(Global.n-Global.k,1)
-        l=MIN(np.abs(L))
-        L=np.sign(L/S)*l
-        lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
-        L=lin-L
-    return demod(lin)
-
-def decode_model_3(mx_iter,L,lin):
-    for i in range(mx_iter):
-        L = tanh_mine(L/2)
-        L_ = np.nanprod(L, axis=1).reshape(Global.n - Global.k, 1)
-        L = np.divide(L_, L)
-        L = 2*atanh_mine(L)
-        lin = (lin + np.nansum(L, axis=0)).reshape(1, Global.n)
-        L = lin - L
-    return demod(lin)
-
-# def decode(H,c_Rx):
-#     mx_iter=15
-#     l_intrinsic = np.multiply(2 / Global.std**2, c_Rx)
-#     d_bits=[[] for i in range(MODEL)]
-#     for model in selModel:
-#         lin = l_intrinsic
-#         L = np.multiply(H, lin)
-#         indx = np.where(L == 0)
-#         L[indx] = np.nan
-#         if model==0: # 0 -> original model.
-#             for i in range(mx_iter):
-#                 L=np.tanh(L/2)
-#                 L_=np.nanprod(L,axis=1).reshape(Global.n-Global.k,1)
-#                 L=np.divide(L_, L)
-#                 L=2*ATANH(L)
-#                 lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
-#                 L=lin-L
-#             d_bits[model]=demod(lin)
-#         if model==1: # 1 -> alpha beta model.
-#             for i in range(mx_iter):
-#                 S=np.sign(L)
-#                 S=np.nanprod(S,axis=1).reshape(Global.n-Global.k,1)
-#                 l=MIN(np.abs(L))
-#                 L=np.sign(L/S)*l
-#                 L=alpha*L+beta
-#                 lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
-#                 L=lin-L
-#             d_bits[model]=demod(lin)
-#         if model==2: # 2 -> min sum model
-#             for i in range(mx_iter):
-#                 S=np.sign(L)
-#                 S=np.nanprod(S,axis=1).reshape(Global.n-Global.k,1)
-#                 l=MIN(np.abs(L))
-#                 L=np.sign(L/S)*l
-#                 lin=(lin+np.nansum(L,axis=0)).reshape(1,Global.n)
-#                 L=lin-L
-#             d_bits[model]=demod(lin)
-#         if model==3: # 3 -> approximation model.
-#             for i in range(mx_iter):
-#                 L = tanh_mine(L/2)
-#                 L_ = np.nanprod(L, axis=1).reshape(Global.n - Global.k, 1)
-#                 L = np.divide(L_, L)
-#                 L = 2*atanh_mine(L)
-#                 lin = (lin + np.nansum(L, axis=0)).reshape(1, Global.n)
-#                 L = lin - L
-#             d_bits[model] = demod(lin)
-#         if model==4: # 4 -> default model
-#             d_bits[model] = demod(l_intrinsic)
-#     return np.array(d_bits)
 ######################## MAIN ################################
-#Setting up the scheduler
 if __name__ == '__main__':
     client = Client(processes=True, n_workers=4)
-
     tmp=[]
     genAll(tmp,64)
     H,c_encoded=hg1.encode(Global.msg)
@@ -220,23 +160,36 @@ if __name__ == '__main__':
     Global.bit_err=[[0 for i in range(1,ITER)] for j in range(MODEL)]
     mem=[(1.5014,-0.0022),(1.174,-0.055),(0.8513,0.0464),(0.6218,-0.0205),(0.4713,-0.008),(0.3703,-0.0255),(0.2715,0),(0.3035,-0.0126),(0.2597,0.0063)]
     indx=0
-
-    for i_upper in range(1,ITER): # FOR DIFF std
+    dec_bits_collection = []
+    H = dask.delayed(H)
+    for i_upper in range(1,ITER):
         Global.std=i_upper/10
+        globalstd = i_upper/10
         alpha, beta = mem[indx][0],mem[indx][1]#ml.train()
         indx=indx+1
         c_Rx = epc.rx_message(c_encoded)
+        res = []
         for i in range(c_Rx.shape[0]): # FOR DIFF codes
-            dec_bits=decode(H,c_Rx[i]) ## get results for all the models.
+            dec_bits=dask.delayed(decode)(H,c_Rx[i],globalstd) ## get results for all the models.
+            res.append(dec_bits)
+        dec_bits_collection.append(res)
+        # print('---',i_upper,'---')
+
+    dec_bits_collection=dask.compute(*dec_bits_collection)
+
+    for i_upper in range(1,ITER):
+        c_Rx = epc.rx_message(c_encoded)
+        for i in range (c_Rx.shape[0]):
             for model in selModel: # FOR DIFF models check the accuracy.
                 #Global.code_err[model][i_upper - 1] += ( 1-np.count_nonzero(dec_bits[model] == c_encoded[i]) / Global.n )
-                if (dec_bits[model]==c_encoded[i]).all()==True:
+                if (dec_bits_collection[i_upper-1][i][model]==c_encoded[i]).all()==True:
                     Global.code_err[model][i_upper - 1] +=1
-        print('---',i_upper,'---')
-    # Calculating the BLER
         for model in range(MODEL):
             #Global.code_err[model][i_upper-1]=Global.code_err[model][i_upper-1]/c_Rx.shape[0]
             Global.code_err[model][i_upper-1]=1-Global.code_err[model][i_upper-1]/c_Rx.shape[0]
+    #         print(Global.code_err[model][i_upper-1])
+        print('---',i_upper,'---')
+
     ####################### Plotting the results #################################
     x_axis=np.array([10*math.log10((100/(i**2))) for i in range(1,ITER) ])
     color=["rx-","bo-","g^-","kx-","yo-"]

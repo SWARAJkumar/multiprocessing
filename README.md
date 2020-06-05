@@ -10,6 +10,7 @@ Parallelizing code using DASK
 ```
 localhost:8787/status
 ```
+4. Set n_workers (in main function)to the number of cores you wish to use
 
 
 
