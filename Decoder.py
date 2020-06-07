@@ -199,5 +199,5 @@ if __name__ == '__main__':
     plt.legend(('Original','ML-method','Min_max','tnh_atnh approx','No_Decoder'))
     plt.xlabel('SNR(db)')
     plt.ylabel('BLER (n=%d/k=%d)'%(Global.n,Global.k))
-    plt.show()
+    plt.savefig('output.png')
     ######################################################################
